@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { quickbooksService, QuickBooksAnalytics, QuickBooksSyncStatus } from '../services/quickbooksService';
 
 interface Integration {
   id: string;
@@ -28,6 +29,13 @@ const Integrations: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // QuickBooks specific state
+  const [showQuickBooksAnalytics, setShowQuickBooksAnalytics] = useState(false);
+  const [quickBooksAnalytics, setQuickBooksAnalytics] = useState<QuickBooksAnalytics | null>(null);
+  const [quickBooksSyncStatus, setQuickBooksSyncStatus] = useState<QuickBooksSyncStatus | null>(null);
+  const [syncingPayments, setSyncingPayments] = useState(false);
+  const [daysBack, setDaysBack] = useState(30);
+
   const [configForms, setConfigForms] = useState({
     quickbooks: {
       clientId: '',
@@ -54,14 +62,9 @@ const Integrations: React.FC = () => {
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
 
-  const API_BASE_URL = (window as any).REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
+  const API_BASE_URL = (window as any).REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-  useEffect(() => {
-    fetchIntegrations();
-    fetchActivityLogs();
-  }, []);
-
-  const fetchIntegrations = async () => {
+  const fetchIntegrations = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -121,6 +124,156 @@ const Integrations: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  }, [API_BASE_URL]);
+
+  useEffect(() => {
+    fetchIntegrations();
+    fetchActivityLogs();
+    fetchQuickBooksStatus();
+  }, [fetchIntegrations]);
+
+  const fetchQuickBooksStatus = async () => {
+    try {
+      const status = await quickbooksService.getSyncStatus();
+      setQuickBooksSyncStatus(status);
+    } catch (error) {
+      console.error('Failed to fetch QuickBooks status:', error);
+    }
+  };
+
+  const fetchQuickBooksAnalytics = async () => {
+    try {
+      const analytics = await quickbooksService.getPaymentAnalytics();
+      setQuickBooksAnalytics(analytics);
+    } catch (error) {
+      console.error('Failed to fetch QuickBooks analytics:', error);
+      setError('Failed to load QuickBooks analytics. Please sync payments first.');
+    }
+  };
+
+  const handleQuickBooksConnect = async () => {
+    try {
+      setActionLoading('quickbooks');
+      const authData = await quickbooksService.getAuthUrl();
+      
+      // Open QuickBooks authorization in new window
+      const authWindow = window.open(
+        authData.auth_url, 
+        'QuickBooks Auth', 
+        'width=600,height=600,scrollbars=yes,resizable=yes'
+      );
+
+      // Listen for the callback
+      const checkClosed = setInterval(async () => {
+        if (authWindow?.closed) {
+          clearInterval(checkClosed);
+          // Refresh status after authorization
+          await fetchQuickBooksStatus();
+          await fetchIntegrations();
+        }
+      }, 1000);
+
+      // Add activity log
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}`,
+        datetime: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        integration: 'QuickBooks',
+        activity: 'Authorization Initiated',
+        status: 'pending',
+        details: 'QuickBooks authorization window opened'
+      };
+      setActivityLogs(prev => [newLog, ...prev]);
+
+    } catch (error) {
+      console.error('Error connecting QuickBooks:', error);
+      setError('Failed to start QuickBooks authorization. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleQuickBooksSync = async () => {
+    try {
+      setSyncingPayments(true);
+      const result = await quickbooksService.syncPaymentsToCache(daysBack);
+      
+      // Add activity log
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}`,
+        datetime: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        integration: 'QuickBooks',
+        activity: 'Sync Payments',
+        status: 'success',
+        details: `Synced ${result.total_payments} payments from QuickBooks`
+      };
+      setActivityLogs(prev => [newLog, ...prev]);
+
+      // Refresh status and analytics
+      await fetchQuickBooksStatus();
+      await fetchQuickBooksAnalytics();
+      
+      setError(null);
+    } catch (error) {
+      console.error('Error syncing QuickBooks payments:', error);
+      setError('Failed to sync payments from QuickBooks. Please try again.');
+      
+      // Add error log
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}`,
+        datetime: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        integration: 'QuickBooks',
+        activity: 'Sync Payments',
+        status: 'failed',
+        details: 'Failed to sync payments from QuickBooks'
+      };
+      setActivityLogs(prev => [newLog, ...prev]);
+    } finally {
+      setSyncingPayments(false);
+    }
+  };
+
+  const handleQuickBooksClearCache = async () => {
+    if (!window.confirm('Are you sure you want to clear the QuickBooks cache? This will delete all locally stored payment data.')) {
+      return;
+    }
+
+    try {
+      setActionLoading('quickbooks');
+      await quickbooksService.clearCache();
+      
+      // Clear analytics
+      setQuickBooksAnalytics(null);
+      
+      // Add activity log
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}`,
+        datetime: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        integration: 'QuickBooks',
+        activity: 'Clear Cache',
+        status: 'success',
+        details: 'QuickBooks cache cleared successfully'
+      };
+      setActivityLogs(prev => [newLog, ...prev]);
+      
+      setError(null);
+    } catch (error) {
+      console.error('Error clearing QuickBooks cache:', error);
+      setError('Failed to clear QuickBooks cache. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Never';
+    return new Date(dateString).toLocaleString();
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
   };
 
   const fetchActivityLogs = async () => {
@@ -308,13 +461,14 @@ const Integrations: React.FC = () => {
       const result = await response.json();
       
       if (result.success) {
+        const integration = integrations.find(i => i.id === integrationId);
         const newLog: ActivityLog = {
           id: `log-${Date.now()}`,
           datetime: new Date().toISOString().slice(0, 19).replace('T', ' '),
-          integration: integrations.find(i => i.id === integrationId)?.name || integrationId,
+          integration: integration?.name || integrationId,
           activity: 'Test Connection',
           status: 'success',
-          details: result.message || 'Test completed successfully'
+          details: result.message || `Test successful for ${integration?.name}`
         };
         setActivityLogs(prev => [newLog, ...prev]);
       } else {
@@ -322,53 +476,7 @@ const Integrations: React.FC = () => {
       }
     } catch (err) {
       console.error(`Error testing ${integrationId}:`, err);
-      setError(`Test failed for ${integrationId}. Please check your configuration.`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleSync = async (integrationId: string) => {
-    try {
-      setActionLoading(integrationId);
-      
-      const response = await fetch(`${API_BASE_URL}/integrations/${integrationId}/sync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        const integration = integrations.find(i => i.id === integrationId);
-        const newLog: ActivityLog = {
-          id: `log-${Date.now()}`,
-          datetime: new Date().toISOString().slice(0, 19).replace('T', ' '),
-          integration: integration?.name || integrationId,
-          activity: 'Manual Sync',
-          status: 'success',
-          details: result.message || `Manual sync initiated for ${integration?.name}`
-        };
-        setActivityLogs(prev => [newLog, ...prev]);
-        
-        // Update last sync time
-        setIntegrations(prev => prev.map(integration => 
-          integration.id === integrationId 
-            ? { ...integration, lastSync: new Date().toISOString().slice(0, 19).replace('T', ' ') }
-            : integration
-        ));
-      } else {
-        throw new Error(result.message || 'Sync failed');
-      }
-    } catch (err) {
-      console.error(`Error syncing ${integrationId}:`, err);
-      setError(`Sync failed for ${integrationId}. Please try again.`);
+      setError(`Test failed for ${integrationId}. Please try again.`);
     } finally {
       setActionLoading(null);
     }
@@ -488,20 +596,37 @@ const Integrations: React.FC = () => {
                 {/* Integration Actions */}
                 <div className="flex items-center gap-2">
                   {integration.status === 'not-connected' ? (
-                    <button
-                      onClick={() => setShowConfigModal(integration.id)}
-                      disabled={actionLoading === integration.id}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {actionLoading === integration.id ? (
-                        <>
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                          Connecting...
-                        </>
-                      ) : (
-                        'Connect'
-                      )}
-                    </button>
+                    integration.id === 'quickbooks' ? (
+                      <button
+                        onClick={handleQuickBooksConnect}
+                        disabled={actionLoading === integration.id}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {actionLoading === integration.id ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                            Connecting...
+                          </>
+                        ) : (
+                          'Connect QuickBooks'
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowConfigModal(integration.id)}
+                        disabled={actionLoading === integration.id}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {actionLoading === integration.id ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                            Connecting...
+                          </>
+                        ) : (
+                          'Connect'
+                        )}
+                      </button>
+                    )
                   ) : (
                     <>
                       <button
@@ -513,17 +638,17 @@ const Integrations: React.FC = () => {
                       </button>
                       {integration.id === 'quickbooks' && (
                         <button
-                          onClick={() => handleSync(integration.id)}
-                          disabled={actionLoading === integration.id}
+                          onClick={handleQuickBooksSync}
+                          disabled={syncingPayments}
                           className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                          {actionLoading === integration.id ? (
+                          {syncingPayments ? (
                             <>
                               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
                               Syncing...
                             </>
                           ) : (
-                            'Sync Now'
+                            'Sync Payments'
                           )}
                         </button>
                       )}
@@ -563,6 +688,193 @@ const Integrations: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* QuickBooks Analytics Section */}
+      {quickBooksSyncStatus?.connected && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium text-gray-900">QuickBooks Payment Analytics</h2>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowQuickBooksAnalytics(!showQuickBooksAnalytics)}
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
+                  {showQuickBooksAnalytics ? 'Hide Analytics' : 'Show Analytics'}
+                </button>
+                <button
+                  onClick={handleQuickBooksClearCache}
+                  disabled={actionLoading === 'quickbooks'}
+                  className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:opacity-50"
+                >
+                  {actionLoading === 'quickbooks' ? 'Clearing...' : 'Clear Cache'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {showQuickBooksAnalytics && (
+            <div className="p-6">
+              {/* Sync Controls */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Days to Sync Back
+                    </label>
+                    <input
+                      type="number"
+                      value={daysBack}
+                      onChange={(e) => setDaysBack(parseInt(e.target.value) || 30)}
+                      min="1"
+                      max="365"
+                      className="border border-gray-300 rounded px-3 py-2 w-32"
+                    />
+                  </div>
+                  <button
+                    onClick={handleQuickBooksSync}
+                    disabled={syncingPayments}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {syncingPayments ? 'Syncing...' : 'Sync Payments'}
+                  </button>
+                  <button
+                    onClick={fetchQuickBooksAnalytics}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    Refresh Analytics
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <div className="text-sm text-blue-600 font-medium">Connection Status</div>
+                  <div className="text-lg font-bold text-blue-900">
+                    {quickBooksSyncStatus.connected ? 'Connected' : 'Disconnected'}
+                  </div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <div className="text-sm text-green-600 font-medium">Last Sync</div>
+                  <div className="text-lg font-bold text-green-900">
+                    {formatDate(quickBooksSyncStatus.last_sync)}
+                  </div>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <div className="text-sm text-purple-600 font-medium">Records Synced</div>
+                  <div className="text-lg font-bold text-purple-900">
+                    {quickBooksSyncStatus.records_synced || 0}
+                  </div>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <div className="text-sm text-yellow-600 font-medium">Sync Status</div>
+                  <div className="text-lg font-bold text-yellow-900">
+                    {quickBooksSyncStatus.last_sync_success ? 'Success' : 'Failed'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Analytics Data */}
+              {quickBooksAnalytics ? (
+                <div className="space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white border border-gray-200 p-4 rounded-lg">
+                      <div className="text-sm text-gray-600">Total Payments</div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {quickBooksAnalytics.summary.total_payments}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-lg">
+                      <div className="text-sm text-gray-600">Total Amount</div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {formatCurrency(quickBooksAnalytics.summary.total_amount)}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-lg">
+                      <div className="text-sm text-gray-600">Average Payment</div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {formatCurrency(quickBooksAnalytics.summary.average_payment)}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-lg">
+                      <div className="text-sm text-gray-600">Last Updated</div>
+                      <div className="text-lg font-bold text-gray-900">
+                        {formatDate(quickBooksAnalytics.summary.sync_timestamp)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Methods Table */}
+                  <div className="bg-white border border-gray-200 rounded-lg">
+                    <div className="p-4 border-b border-gray-200">
+                      <h3 className="text-lg font-medium text-gray-900">Payment Methods Breakdown</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Count</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Percentage</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {quickBooksAnalytics.payment_methods.map((method, index) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{method.method}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{method.count}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(method.amount)}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{method.percentage.toFixed(1)}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Daily Trends */}
+                  <div className="bg-white border border-gray-200 rounded-lg">
+                    <div className="p-4 border-b border-gray-200">
+                      <h3 className="text-lg font-medium text-gray-900">Daily Payment Trends</h3>
+                    </div>
+                    <div className="p-4">
+                      <div className="space-y-2">
+                        {quickBooksAnalytics.daily_trends.slice(0, 10).map((trend, index) => (
+                          <div key={index} className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">{trend.date}</span>
+                            <span className="text-sm font-medium text-gray-900">{formatCurrency(trend.amount)}</span>
+                          </div>
+                        ))}
+                        {quickBooksAnalytics.daily_trends.length > 10 && (
+                          <div className="text-sm text-gray-500 text-center pt-2">
+                            Showing last 10 days. Total: {quickBooksAnalytics.daily_trends.length} days
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-600">
+                  <p>No analytics data available. Please sync payments to view analytics.</p>
+                </div>
+              )}
+
+              {/* Error Display */}
+              {quickBooksSyncStatus.error_message && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <div className="text-sm text-red-800">
+                    <strong>Error:</strong> {quickBooksSyncStatus.error_message}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

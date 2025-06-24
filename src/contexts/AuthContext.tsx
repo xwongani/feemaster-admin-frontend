@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './SupabaseContext';
+import { quickbooksService } from '../services/quickbooksService';
 
 interface AuthContextType {
   user: User | null;
@@ -58,7 +59,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      // Clear QuickBooks cache before logout
+      try {
+        await quickbooksService.clearCache();
+        console.log('QuickBooks cache cleared on logout');
+      } catch (cacheError) {
+        console.error('Failed to clear QuickBooks cache:', cacheError);
+        // Don't fail logout if cache clearing fails
+      }
+      
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Logout failed:', error);
+      throw error;
+    }
   };
 
   const value = {
