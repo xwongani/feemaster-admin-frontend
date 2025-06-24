@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../App';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signIn, user } = useAuth();
+  const { login, user } = useAuth();
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
@@ -18,10 +18,10 @@ const Login: React.FC = () => {
     setLoading(true);
     setError('');
 
-    const { error } = await signIn(email, password);
+    const success = await login(email, password);
     
-    if (error) {
-      setError(error.message);
+    if (!success) {
+      setError('Invalid email or password');
     }
     
     setLoading(false);

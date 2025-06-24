@@ -1,10 +1,10 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../App';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { logout } = useAuth();
 
   const navItems = [
     { path: '/dashboard', icon: 'fas fa-home', label: 'Dashboard' },
@@ -16,8 +16,8 @@ const Sidebar: React.FC = () => {
     { path: '/settings', icon: 'fas fa-cog', label: 'Settings' },
   ];
 
-  const handleLogout = async () => {
-    await signOut();
+  const handleLogout = () => {
+    logout();
   };
 
   return (

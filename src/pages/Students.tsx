@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../App';
 
 interface Student {
   id: string;
@@ -33,7 +33,7 @@ interface StudentStats {
 }
 
 const Students: React.FC = () => {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
@@ -61,7 +61,7 @@ const Students: React.FC = () => {
   const [perPage] = useState(10);
 
   // Use standard React environment variable access
-  const API_BASE_URL = (window as any).REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
 
   useEffect(() => {
     // Always fetch data - we have fallback auth for development
@@ -78,14 +78,8 @@ const Students: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Get the session token or use a test token for development
-      // let authToken = session?.access_token;
-      
-      // For development testing, use a temporary token if no session
-      // if (!authToken) {
-      //   console.warn('No session token, using test token for development');
-      //   authToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJpc3MiOiJzdXBhYmFzZSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjE3NDg4MTc4NjksImlhdCI6MTc0ODgxNDI2OSwidXNlcl9tZXRhZGF0YSI6eyJmaXJzdF9uYW1lIjoiQWRtaW4iLCJsYXN0X25hbWUiOiJVc2VyIn0sImFwcF9tZXRhZGF0YSI6eyJyb2xlIjoiYWRtaW4ifX0.w9e3Ivoq-7D6_gGPAMK7itFHSJ47foc4s43683-Zr28';
-      // }
+      // Get the auth token from localStorage
+      const authToken = localStorage.getItem('access_token');
 
       const params = new URLSearchParams({
         page: currentPage.toString(),
@@ -97,13 +91,18 @@ const Students: React.FC = () => {
 
       console.log('🔍 API Request Details:');
       console.log('- URL:', `${API_BASE_URL}/students?${params}`);
-      console.log('- Auth disabled for development');
+      console.log('- Auth token:', authToken ? 'Present' : 'Not found');
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
 
       const response = await fetch(`${API_BASE_URL}/students?${params}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${authToken}`,  // Auth disabled for development
-        },
+        headers,
       });
 
       console.log('📡 Response Details:');
@@ -161,22 +160,21 @@ const Students: React.FC = () => {
 
   const fetchStudentStats = async () => {
     try {
-      // Get the session token or use a test token for development
-      // let authToken = session?.access_token;
-      
-      // For development testing, use a temporary token if no session
-      // if (!authToken) {
-      //   console.warn('No session token, using test token for development');
-      //   authToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJpc3MiOiJzdXBhYmFzZSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjE3NDg4MTc4NjksImlhdCI6MTc0ODgxNDI2OSwidXNlcl9tZXRhZGF0YSI6eyJmaXJzdF9uYW1lIjoiQWRtaW4iLCJsYXN0X25hbWUiOiJVc2VyIn0sImFwcF9tZXRhZGF0YSI6eyJyb2xlIjoiYWRtaW4ifX0.w9e3Ivoq-7D6_gGPAMK7itFHSJ47foc4s43683-Zr28';
-      // }
+      // Get the auth token from localStorage
+      const authToken = localStorage.getItem('access_token');
 
       console.log('📊 Fetching student stats from:', `${API_BASE_URL}/students/stats/overview`);
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/students/stats/overview`, {
-        headers: {
-          'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${authToken}`,  // Auth disabled for development
-        },
+        headers,
       });
 
       if (response.ok) {
