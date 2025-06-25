@@ -8,6 +8,10 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState('');
   const { login, user } = useAuth();
 
   if (user) {
@@ -29,6 +33,28 @@ const Login: React.FC = () => {
       setError('Network or server error. Please try again later.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    setForgotMessage('');
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/v1/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+      if (response.ok) {
+        setForgotMessage('If an account with that email exists, a reset link has been sent.');
+      } else {
+        setForgotMessage('Unable to process request. Please try again later.');
+      }
+    } catch (err) {
+      setForgotMessage('Network error. Please try again.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -100,9 +126,13 @@ const Login: React.FC = () => {
 
           <div className="flex items-center justify-between">
             <div className="text-sm">
-              <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+              <button
+                type="button"
+                className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
+                onClick={() => setShowForgot(true)}
+              >
                 Forgot password?
-              </a>
+              </button>
             </div>
           </div>
 
@@ -119,6 +149,56 @@ const Login: React.FC = () => {
             </button>
           </div>
         </form>
+
+        {/* Forgot Password Modal */}
+        {showForgot && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative">
+              <button
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+                onClick={() => {
+                  setShowForgot(false);
+                  setForgotEmail('');
+                  setForgotMessage('');
+                }}
+                aria-label="Close"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+              <h3 className="text-lg font-bold mb-4 text-gray-900">Forgot Password</h3>
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div>
+                  <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700 mb-1">
+                    Enter your email address
+                  </label>
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    className="form-input w-full"
+                    placeholder="Email address"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                    disabled={forgotLoading}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full primary-btn flex items-center justify-center gap-2"
+                  disabled={forgotLoading}
+                >
+                  {forgotLoading && (
+                    <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                  )}
+                  {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+                </button>
+                {forgotMessage && (
+                  <div className="text-sm text-center text-green-600 mt-2">{forgotMessage}</div>
+                )}
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
