@@ -1,0 +1,55 @@
+import React from 'react';
+import * as Sentry from "@sentry/react";
+
+const ErrorFallback: React.FC<{ error: Error; resetError: () => void }> = ({ error, resetError }) => {
+  return (
+    <div style={{ 
+      padding: '20px', 
+      textAlign: 'center', 
+      maxWidth: '500px', 
+      margin: '50px auto',
+      background: '#fff',
+      borderRadius: '8px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+    }}>
+      <h2>Something went wrong</h2>
+      <p>We're sorry, but something unexpected happened. Our team has been notified.</p>
+      <button 
+        onClick={resetError}
+        style={{
+          background: '#007bff',
+          color: 'white',
+          border: 'none',
+          padding: '10px 20px',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          marginTop: '10px'
+        }}
+      >
+        Try again
+      </button>
+      {process.env.NODE_ENV === 'development' && (
+        <details style={{ marginTop: '20px', textAlign: 'left' }}>
+          <summary>Error details (development only)</summary>
+          <pre style={{ 
+            background: '#f8f9fa', 
+            padding: '10px', 
+            borderRadius: '4px',
+            overflow: 'auto',
+            fontSize: '12px'
+          }}>
+            {error.message}
+          </pre>
+        </details>
+      )}
+    </div>
+  );
+};
+
+export const SentryErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <Sentry.ErrorBoundary fallback={ErrorFallback}>
+      {children}
+    </Sentry.ErrorBoundary>
+  );
+}; 

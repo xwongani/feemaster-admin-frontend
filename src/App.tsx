@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+// import * as Sentry from "@sentry/react";
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
@@ -21,6 +22,8 @@ import ParentUpdateForm from './pages/ParentUpdateForm';
 import ParentDeleteAccount from './pages/ParentDeleteAccount';
 import { ParentPortalProvider } from './contexts/parentPortalContext';
 import './index.css';
+// import './sentry'; // Import Sentry configuration
+// import { SentryErrorBoundary } from './components/ErrorBoundary';
 
 // Simple auth context for backend API
 interface User {
@@ -35,6 +38,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
+  checkAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,33 +55,47 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check if user is logged in on app start
+  const checkAuth = async () => {
     const token = localStorage.getItem('access_token');
-    if (token) {
-      // Verify token with backend
-      fetch(`${process.env.REACT_APP_API_BASE_URL}/api/v1/auth/me`, {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/v1/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
-      })
-      .then(res => res.json())
-      .then(data => {
+      });
+
+      if (response.ok) {
+        const data = await response.json();
         if (data.success) {
           setUser(data.data);
         } else {
+          // Token is invalid or expired
           localStorage.removeItem('access_token');
+          setUser(null);
         }
-      })
-      .catch(() => {
+      } else {
+        // Token is invalid or expired
         localStorage.removeItem('access_token');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-    } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      // On network error, keep the token but don't set user
+      // This allows for offline functionality if needed
+      localStorage.removeItem('access_token');
+      setUser(null);
+    } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    checkAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -92,15 +110,16 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
       const data = await response.json();
       
-      if (data.access_token) {
+      if (response.ok && data.access_token) {
         localStorage.setItem('access_token', data.access_token);
         setUser(data.user);
         return true;
       } else {
+        console.error('Login failed:', data);
         return false;
       }
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Login network error:', error);
       return false;
     }
   };
@@ -108,10 +127,12 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const logout = () => {
     localStorage.removeItem('access_token');
     setUser(null);
+    // Force a page reload to clear any cached state
+    window.location.href = '/login';
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

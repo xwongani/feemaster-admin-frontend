@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
+import Header from '../components/Header';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -12,10 +13,33 @@ const Login: React.FC = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotMessage, setForgotMessage] = useState('');
-  const { login, user } = useAuth();
+  
+  const { login, user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
+  // Get the intended destination from location state or default to dashboard
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate(from, { replace: true });
+    }
+  }, [user, authLoading, navigate, from]);
+
+  // Don't render login form while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // If already logged in, redirect
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={from} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,12 +49,15 @@ const Login: React.FC = () => {
 
     try {
       const success = await login(email, password);
-      if (!success) {
+      if (success) {
+        // Login successful, redirect will be handled by useEffect
+        navigate(from, { replace: true });
+      } else {
         setError('Invalid email or password. Please try again.');
         setPassword('');
       }
     } catch (err) {
-      setError('Network or server error. Please try again later.');
+      setError('Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -46,159 +73,165 @@ const Login: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail })
       });
+      
       if (response.ok) {
-        setForgotMessage('If an account with that email exists, a reset link has been sent.');
+        setForgotMessage('If an account with that email exists, a password reset link has been sent.');
+        setForgotEmail('');
       } else {
-        setForgotMessage('Unable to process request. Please try again later.');
+        const data = await response.json();
+        setForgotMessage(data.detail || 'Unable to process request. Please try again.');
       }
     } catch (err) {
-      setForgotMessage('Network error. Please try again.');
+      setForgotMessage('Network error. Please check your connection and try again.');
     } finally {
       setForgotLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <div className="mx-auto h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center">
-            <i className="fas fa-graduation-cap text-white text-xl"></i>
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div>
+            <div className="mx-auto h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center">
+              <i className="fas fa-graduation-cap text-white text-xl"></i>
+            </div>
+            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+              Fee Master Admin
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600">
+              Sign in to your admin account
+            </p>
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Fee Master Admin
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to your admin account
-          </p>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit} autoComplete="on">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
-              {error}
+          <form className="mt-8 space-y-6" onSubmit={handleSubmit} autoComplete="on">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            )}
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  Email address
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className="form-input w-full"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <div className="relative">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  className="form-input w-full pr-10"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-700 focus:outline-none"
+                  tabIndex={-1}
+                  onClick={() => setShowPassword((show) => !show)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <i className={showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'}></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="text-sm">
+                <button
+                  type="button"
+                  className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
+                  onClick={() => setShowForgot(true)}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full primary-btn justify-center flex items-center gap-2"
+              >
+                {loading && (
+                  <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                )}
+                {loading ? 'Signing in...' : 'Sign in'}
+              </button>
+            </div>
+          </form>
+
+          {/* Forgot Password Modal */}
+          {showForgot && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+              <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative">
+                <button
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+                  onClick={() => {
+                    setShowForgot(false);
+                    setForgotEmail('');
+                    setForgotMessage('');
+                  }}
+                  aria-label="Close"
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+                <h3 className="text-lg font-bold mb-4 text-gray-900">Forgot Password</h3>
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700 mb-1">
+                      Enter your email address
+                    </label>
+                    <input
+                      id="forgot-email"
+                      type="email"
+                      className="form-input w-full"
+                      placeholder="Email address"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      required
+                      disabled={forgotLoading}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full primary-btn flex items-center justify-center gap-2"
+                    disabled={forgotLoading}
+                  >
+                    {forgotLoading && (
+                      <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
+                    )}
+                    {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+                  </button>
+                  {forgotMessage && (
+                    <div className="text-sm text-center text-green-600 mt-2">{forgotMessage}</div>
+                  )}
+                </form>
+              </div>
             </div>
           )}
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="form-input w-full"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-            <div className="relative">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                required
-                className="form-input w-full pr-10"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-700 focus:outline-none"
-                tabIndex={-1}
-                onClick={() => setShowPassword((show) => !show)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                <i className={showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'}></i>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <button
-                type="button"
-                className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
-                onClick={() => setShowForgot(true)}
-              >
-                Forgot password?
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full primary-btn justify-center flex items-center gap-2"
-            >
-              {loading && (
-                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
-              )}
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </div>
-        </form>
-
-        {/* Forgot Password Modal */}
-        {showForgot && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative">
-              <button
-                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
-                onClick={() => {
-                  setShowForgot(false);
-                  setForgotEmail('');
-                  setForgotMessage('');
-                }}
-                aria-label="Close"
-              >
-                <i className="fas fa-times"></i>
-              </button>
-              <h3 className="text-lg font-bold mb-4 text-gray-900">Forgot Password</h3>
-              <form onSubmit={handleForgotPassword} className="space-y-4">
-                <div>
-                  <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700 mb-1">
-                    Enter your email address
-                  </label>
-                  <input
-                    id="forgot-email"
-                    type="email"
-                    className="form-input w-full"
-                    placeholder="Email address"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    required
-                    disabled={forgotLoading}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full primary-btn flex items-center justify-center gap-2"
-                  disabled={forgotLoading}
-                >
-                  {forgotLoading && (
-                    <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
-                  )}
-                  {forgotLoading ? 'Sending...' : 'Send Reset Link'}
-                </button>
-                {forgotMessage && (
-                  <div className="text-sm text-center text-green-600 mt-2">{forgotMessage}</div>
-                )}
-              </form>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

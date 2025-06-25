@@ -1,0 +1,40 @@
+import * as Sentry from "@sentry/react";
+import { BrowserTracing } from "@sentry/tracing";
+
+// Initialize Sentry
+Sentry.init({
+  dsn: process.env.REACT_APP_SENTRY_DSN || "https://c5e51e9a2465263c987fe4bed6ab42d9@o4509560859721728.ingest.us.sentry.io/4509560886198272",
+  environment: process.env.REACT_APP_ENVIRONMENT || "development",
+  
+  // Setting this option to true will send default PII data to Sentry.
+  // For example, automatic IP address collection on events
+  sendDefaultPii: true,
+  
+  // Enable logging in Sentry
+  _experiments: {
+    enableLogs: true,
+  },
+  
+  integrations: [
+    new BrowserTracing({
+      routingInstrumentation: Sentry.reactRouterV6Instrumentation(
+        // This will be set up in App.tsx
+        () => {},
+        // This will be set up in App.tsx
+        () => {}
+      ),
+    }),
+    // send console.log, console.error, and console.warn calls as logs to Sentry
+    Sentry.consoleLoggingIntegration({ levels: ["log", "error", "warn"] }),
+  ],
+  
+  // Set tracesSampleRate to 1.0 to capture 100% of transactions for performance monitoring.
+  // We recommend adjusting this value in production.
+  tracesSampleRate: 1.0,
+  
+  // Set profilesSampleRate to 1.0 to profile 100% of sampled transactions.
+  // We recommend adjusting this value in production.
+  profilesSampleRate: 1.0,
+});
+
+export default Sentry; 
