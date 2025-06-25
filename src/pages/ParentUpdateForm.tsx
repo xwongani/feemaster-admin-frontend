@@ -6,17 +6,22 @@ import { updateParent } from '../services/parentPortalApi';
 const ParentUpdateForm: React.FC = () => {
   const { portalData, setPortalData } = useParentPortal();
   const navigate = useNavigate();
-  if (!portalData) return <div>No data found. Please start from the lookup page.</div>;
-  const parent = portalData.parents[0];
+  let parent: any = null;
+  if (portalData) {
+    parent = portalData.parents[0];
+  }
   const [form, setForm] = useState({
-    first_name: parent.first_name,
-    last_name: parent.last_name,
-    email: parent.email,
-    phone: parent.phone,
-    address: parent.address || ''
+    first_name: parent?.first_name || '',
+    last_name: parent?.last_name || '',
+    email: parent?.email || '',
+    phone: parent?.phone || '',
+    address: parent?.address || ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  if (!portalData) return <div>No data found. Please start from the lookup page.</div>;
+  parent = portalData.parents[0];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
