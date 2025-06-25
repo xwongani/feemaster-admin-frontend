@@ -11,6 +11,15 @@ import Integrations from './pages/Integrations';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import ResetPassword from './pages/ResetPassword';
+import ParentPortalLayout from './pages/ParentPortalLayout';
+import ParentLookupForm from './pages/ParentLookupForm';
+import ParentSignupForm from './pages/ParentSignupForm';
+import ParentStudentInfo from './pages/ParentStudentInfo';
+import ParentPaymentPage from './pages/ParentPaymentPage';
+import ParentPaymentConfirmation from './pages/ParentPaymentConfirmation';
+import ParentUpdateForm from './pages/ParentUpdateForm';
+import ParentDeleteAccount from './pages/ParentDeleteAccount';
+import { ParentPortalProvider } from './contexts/parentPortalContext';
 import './index.css';
 
 // Simple auth context for backend API
@@ -116,6 +125,21 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            {/* Parent Portal Public Routes */}
+            <Route path="/parent-portal/*" element={
+              <ParentPortalProvider>
+                <ParentPortalLayout />
+              </ParentPortalProvider>
+            }>
+              <Route index element={<ParentLookupForm />} />
+              <Route path="signup" element={<ParentSignupForm />} />
+              <Route path="student" element={<ParentStudentInfo />} />
+              <Route path="pay" element={<ParentPaymentPage />} />
+              <Route path="confirmation" element={<ParentPaymentConfirmation />} />
+              <Route path="update" element={<ParentUpdateForm />} />
+              <Route path="delete" element={<ParentDeleteAccount />} />
+            </Route>
+            {/* Admin Protected Routes */}
             <Route path="/" element={
               <ProtectedRoute>
                 <Layout />
