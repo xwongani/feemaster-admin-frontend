@@ -11,6 +11,9 @@ interface Student {
   status: string;
   date_of_birth?: string;
   gender?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
   parent_student_links?: Array<{
     relationship: string;
     is_primary_contact: boolean;
@@ -32,12 +35,32 @@ interface StudentStats {
   unpaid: number;
 }
 
+interface StudentForm {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  grade: string;
+  class_name: string;
+  status: string;
+  date_of_birth: string;
+  gender: string;
+  address: string;
+  phone: string;
+  email: string;
+  parent_first_name: string;
+  parent_last_name: string;
+  parent_phone: string;
+  parent_email: string;
+  relationship: string;
+}
+
 const Students: React.FC = () => {
   const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +82,26 @@ const Students: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [perPage] = useState(10);
+
+  // Form state
+  const [form, setForm] = useState<StudentForm>({
+    student_id: '',
+    first_name: '',
+    last_name: '',
+    grade: '',
+    class_name: '',
+    status: 'active',
+    date_of_birth: '',
+    gender: '',
+    address: '',
+    phone: '',
+    email: '',
+    parent_first_name: '',
+    parent_last_name: '',
+    parent_phone: '',
+    parent_email: '',
+    relationship: 'parent'
+  });
 
   // Use standard React environment variable access
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -89,10 +132,6 @@ const Students: React.FC = () => {
         ...(filters.grade !== 'all' && { grade: filters.grade })
       });
 
-      console.log('🔍 API Request Details:');
-      console.log('- URL:', `${API_BASE_URL}/students?${params}`);
-      console.log('- Auth token:', authToken ? 'Present' : 'Not found');
-
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -105,30 +144,22 @@ const Students: React.FC = () => {
         headers,
       });
 
-      console.log('📡 Response Details:');
-      console.log('- Status:', response.status);
-      console.log('- StatusText:', response.statusText);
-      console.log('- Headers:', Array.from(response.headers.entries()).reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {}));
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Error Response:', errorText);
         throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('✅ Success Response:', result);
       
       if (result.success) {
         setStudents(result.data || []);
         setTotalPages(result.total_pages || 1);
-        console.log(`🎉 Successfully loaded ${result.data?.length || 0} students`);
       } else {
         throw new Error(result.message || 'Failed to fetch students');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error('💥 Error fetching students:', err);
+      console.error('Error fetching students:', err);
       setError(`Failed to load students: ${errorMessage}. Using fallback data.`);
       
       // Fallback data
@@ -141,6 +172,11 @@ const Students: React.FC = () => {
           grade: 'Grade 7',
           class_name: '7A',
           status: 'active',
+          date_of_birth: '2010-05-15',
+          gender: 'Male',
+          address: '123 Main Street, Lusaka',
+          phone: '+260 97 123 4567',
+          email: 'john.mwanza@school.com',
           parent_student_links: [{
             relationship: 'parent',
             is_primary_contact: true,
@@ -163,8 +199,6 @@ const Students: React.FC = () => {
       // Get the auth token from localStorage
       const authToken = localStorage.getItem('access_token');
 
-      console.log('📊 Fetching student stats from:', `${API_BASE_URL}/students/stats/overview`);
-
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -181,14 +215,13 @@ const Students: React.FC = () => {
         const result = await response.json();
         if (result.success) {
           setStats(result.data);
-          console.log('✅ Successfully loaded student stats:', result.data);
         }
       } else {
         const errorText = await response.text();
-        console.error('❌ Failed to fetch stats:', response.status, errorText);
+        console.error('Failed to fetch stats:', response.status, errorText);
       }
     } catch (err) {
-      console.error('💥 Error fetching student stats:', err);
+      console.error('Error fetching student stats:', err);
     }
   };
 
@@ -204,6 +237,169 @@ const Students: React.FC = () => {
     }
 
     setFilteredStudents(filtered);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const authToken = localStorage.getItem('access_token');
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const payload = {
+        student_id: form.student_id,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        grade: form.grade,
+        class_name: form.class_name,
+        status: form.status,
+        date_of_birth: form.date_of_birth,
+        gender: form.gender,
+        address: form.address,
+        phone: form.phone,
+        email: form.email,
+        parent_info: {
+          first_name: form.parent_first_name,
+          last_name: form.parent_last_name,
+          phone: form.parent_phone,
+          email: form.parent_email,
+          relationship: form.relationship
+        }
+      };
+
+      const url = editingStudent 
+        ? `${API_BASE_URL}/students/${editingStudent.id}`
+        : `${API_BASE_URL}/students`;
+
+      const method = editingStudent ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Refresh the students list
+        await fetchStudents();
+        setShowModal(false);
+        setEditingStudent(null);
+        resetForm();
+      } else {
+        throw new Error(result.message || 'Failed to save student');
+      }
+    } catch (err) {
+      console.error('Error saving student:', err);
+      setError('Failed to save student. Please try again.');
+    }
+  };
+
+  const handleEdit = (student: Student) => {
+    setEditingStudent(student);
+    setForm({
+      student_id: student.student_id,
+      first_name: student.first_name,
+      last_name: student.last_name,
+      grade: student.grade,
+      class_name: student.class_name || '',
+      status: student.status,
+      date_of_birth: student.date_of_birth || '',
+      gender: student.gender || '',
+      address: student.address || '',
+      phone: student.phone || '',
+      email: student.email || '',
+      parent_first_name: student.parent_student_links?.[0]?.parents?.first_name || '',
+      parent_last_name: student.parent_student_links?.[0]?.parents?.last_name || '',
+      parent_phone: student.parent_student_links?.[0]?.parents?.phone || '',
+      parent_email: student.parent_student_links?.[0]?.parents?.email || '',
+      relationship: student.parent_student_links?.[0]?.relationship || 'parent'
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (studentId: string) => {
+    if (!window.confirm('Are you sure you want to delete this student? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const authToken = localStorage.getItem('access_token');
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/students/${studentId}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Refresh the students list
+        await fetchStudents();
+      } else {
+        throw new Error(result.message || 'Failed to delete student');
+      }
+    } catch (err) {
+      console.error('Error deleting student:', err);
+      setError('Failed to delete student. Please try again.');
+    }
+  };
+
+  const resetForm = () => {
+    setForm({
+      student_id: '',
+      first_name: '',
+      last_name: '',
+      grade: '',
+      class_name: '',
+      status: 'active',
+      date_of_birth: '',
+      gender: '',
+      address: '',
+      phone: '',
+      email: '',
+      parent_first_name: '',
+      parent_last_name: '',
+      parent_phone: '',
+      parent_email: '',
+      relationship: 'parent'
+    });
+  };
+
+  const openModal = () => {
+    setEditingStudent(null);
+    resetForm();
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingStudent(null);
+    resetForm();
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -233,12 +429,18 @@ const Students: React.FC = () => {
     const statusClasses = {
       paid: 'bg-green-100 text-green-800',
       partial: 'bg-yellow-100 text-yellow-800',
-      unpaid: 'bg-red-100 text-red-800'
+      unpaid: 'bg-red-100 text-red-800',
+      active: 'bg-green-100 text-green-800',
+      inactive: 'bg-red-100 text-red-800',
+      suspended: 'bg-yellow-100 text-yellow-800'
     };
     const statusText = {
       paid: 'Paid',
       partial: 'Partial',
-      unpaid: 'Unpaid'
+      unpaid: 'Unpaid',
+      active: 'Active',
+      inactive: 'Inactive',
+      suspended: 'Suspended'
     };
     return (
       <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusClasses[status as keyof typeof statusClasses]}`}>
@@ -256,30 +458,42 @@ const Students: React.FC = () => {
     if (primaryParent) {
       return {
         name: `${primaryParent.parents.first_name} ${primaryParent.parents.last_name}`,
-        phone: primaryParent.parents.phone,
-        email: primaryParent.parents.email
+        email: primaryParent.parents.email,
+        phone: primaryParent.parents.phone
       };
     }
-    return { name: 'N/A', phone: 'N/A', email: 'N/A' };
+    return {
+      name: 'No parent info',
+      email: 'N/A',
+      phone: 'N/A'
+    };
   };
 
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Students Management</h1>
-        <p className="text-gray-600">Manage student information, track enrollment status, and process payments.</p>
+        <h1 className="text-3xl font-bold text-gray-900">Student Management</h1>
+        <p className="text-gray-600">Manage student records, track payments, and maintain academic information.</p>
       </div>
 
-      {/* Error Message */}
+      {/* Error Display */}
       {error && (
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <i className="fas fa-exclamation-triangle text-yellow-400"></i>
+              <i className="fas fa-exclamation-triangle text-red-400"></i>
             </div>
             <div className="ml-3">
-              <p className="text-sm text-yellow-700">{error}</p>
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+            <div className="ml-auto pl-3">
+              <button
+                onClick={() => setError(null)}
+                className="text-red-400 hover:text-red-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -297,7 +511,6 @@ const Students: React.FC = () => {
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Total Students</h3>
               <p className="text-2xl font-bold text-gray-900">{stats.total_students}</p>
-              <p className="text-sm text-gray-500">Enrolled</p>
             </div>
           </div>
         </div>
@@ -310,9 +523,8 @@ const Students: React.FC = () => {
               </div>
             </div>
             <div className="ml-4">
-              <h3 className="text-sm font-medium text-gray-500">Fully Paid</h3>
-              <p className="text-2xl font-bold text-gray-900">{stats.fully_paid}</p>
-              <p className="text-sm text-gray-500">{stats.total_students > 0 ? Math.round((stats.fully_paid / stats.total_students) * 100) : 0}% of students</p>
+              <h3 className="text-sm font-medium text-gray-500">Active Students</h3>
+              <p className="text-2xl font-bold text-gray-900">{stats.active_students}</p>
             </div>
           </div>
         </div>
@@ -320,14 +532,13 @@ const Students: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
-                <i className="fas fa-clock text-white text-xl"></i>
+              <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+                <i className="fas fa-money-bill-wave text-white text-xl"></i>
               </div>
             </div>
             <div className="ml-4">
-              <h3 className="text-sm font-medium text-gray-500">Partial Payment</h3>
-              <p className="text-2xl font-bold text-gray-900">{stats.partially_paid}</p>
-              <p className="text-sm text-gray-500">{stats.total_students > 0 ? Math.round((stats.partially_paid / stats.total_students) * 100) : 0}% of students</p>
+              <h3 className="text-sm font-medium text-gray-500">Fully Paid</h3>
+              <p className="text-2xl font-bold text-gray-900">{stats.fully_paid}</p>
             </div>
           </div>
         </div>
@@ -336,76 +547,80 @@ const Students: React.FC = () => {
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <div className="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
-                <i className="fas fa-exclamation-circle text-white text-xl"></i>
+                <i className="fas fa-exclamation-triangle text-white text-xl"></i>
               </div>
             </div>
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Unpaid</h3>
               <p className="text-2xl font-bold text-gray-900">{stats.unpaid}</p>
-              <p className="text-sm text-gray-500">{stats.total_students > 0 ? Math.round((stats.unpaid / stats.total_students) * 100) : 0}% of students</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative">
-              <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-              <input
-                type="text"
-                placeholder="Search students..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+      {/* Search and Actions */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+        <div className="flex-1 max-w-md">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search students..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i className="fas fa-search text-gray-400"></i>
             </div>
-            
-            <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={filters.grade}
-              onChange={(e) => setFilters(prev => ({ ...prev, grade: e.target.value }))}
-            >
-              <option value="all">All Grades</option>
-              <option value="Grade 1">Grade 1</option>
-              <option value="Grade 2">Grade 2</option>
-              <option value="Grade 3">Grade 3</option>
-              <option value="Grade 4">Grade 4</option>
-              <option value="Grade 5">Grade 5</option>
-              <option value="Grade 6">Grade 6</option>
-              <option value="Grade 7">Grade 7</option>
-              <option value="Grade 8">Grade 8</option>
-              <option value="Grade 9">Grade 9</option>
-            </select>
-
-            <select
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="graduated">Graduated</option>
-            </select>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              <i className="fas fa-plus mr-2"></i>
-              Add Student
-            </button>
-            <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
-              <i className="fas fa-upload mr-2"></i>
-              Import CSV
-            </button>
           </div>
         </div>
+        <div className="flex gap-3">
+          <button
+            onClick={openModal}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2"
+          >
+            <i className="fas fa-plus"></i>
+            Add Student
+          </button>
+          <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center gap-2">
+            <i className="fas fa-upload"></i>
+            Import CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-6 flex flex-wrap gap-4">
+        <select
+          value={filters.grade}
+          onChange={(e) => setFilters(prev => ({ ...prev, grade: e.target.value }))}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="all">All Grades</option>
+          <option value="Grade 1">Grade 1</option>
+          <option value="Grade 2">Grade 2</option>
+          <option value="Grade 3">Grade 3</option>
+          <option value="Grade 4">Grade 4</option>
+          <option value="Grade 5">Grade 5</option>
+          <option value="Grade 6">Grade 6</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+          <option value="Grade 11">Grade 11</option>
+          <option value="Grade 12">Grade 12</option>
+        </select>
+
+        <select
+          value={filters.status}
+          onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="suspended">Suspended</option>
+        </select>
       </div>
 
       {/* Students Table */}
@@ -504,13 +719,18 @@ const Students: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-900">
-                            <i className="fas fa-eye"></i>
-                          </button>
-                          <button className="text-yellow-600 hover:text-yellow-900">
+                          <button 
+                            onClick={() => handleEdit(student)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Edit"
+                          >
                             <i className="fas fa-edit"></i>
                           </button>
-                          <button className="text-red-600 hover:text-red-900">
+                          <button 
+                            onClick={() => handleDelete(student.id)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete"
+                          >
                             <i className="fas fa-trash"></i>
                           </button>
                         </div>
@@ -590,27 +810,264 @@ const Students: React.FC = () => {
         )}
       </div>
 
-      {/* Add Student Modal - You would implement this */}
+      {/* Add/Edit Student Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Student</h3>
-              <p className="text-sm text-gray-500 mb-4">Student registration form would go here.</p>
-              <div className="flex gap-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {editingStudent ? 'Edit Student' : 'Add New Student'}
+                </h3>
                 <button
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Save Student
+                  <i className="fas fa-times"></i>
                 </button>
               </div>
+              
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Student Information */}
+                <div>
+                  <h4 className="text-md font-medium text-gray-900 mb-4">Student Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Student ID *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.student_id}
+                        onChange={(e) => setForm({...form, student_id: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status *
+                      </label>
+                      <select
+                        required
+                        value={form.status}
+                        onChange={(e) => setForm({...form, status: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="suspended">Suspended</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        First Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.first_name}
+                        onChange={(e) => setForm({...form, first_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Last Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.last_name}
+                        onChange={(e) => setForm({...form, last_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Grade *
+                      </label>
+                      <select
+                        required
+                        value={form.grade}
+                        onChange={(e) => setForm({...form, grade: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select Grade</option>
+                        <option value="Grade 1">Grade 1</option>
+                        <option value="Grade 2">Grade 2</option>
+                        <option value="Grade 3">Grade 3</option>
+                        <option value="Grade 4">Grade 4</option>
+                        <option value="Grade 5">Grade 5</option>
+                        <option value="Grade 6">Grade 6</option>
+                        <option value="Grade 7">Grade 7</option>
+                        <option value="Grade 8">Grade 8</option>
+                        <option value="Grade 9">Grade 9</option>
+                        <option value="Grade 10">Grade 10</option>
+                        <option value="Grade 11">Grade 11</option>
+                        <option value="Grade 12">Grade 12</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Class
+                      </label>
+                      <input
+                        type="text"
+                        value={form.class_name}
+                        onChange={(e) => setForm({...form, class_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Date of Birth
+                      </label>
+                      <input
+                        type="date"
+                        value={form.date_of_birth}
+                        onChange={(e) => setForm({...form, date_of_birth: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Gender
+                      </label>
+                      <select
+                        value={form.gender}
+                        onChange={(e) => setForm({...form, gender: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Phone
+                      </label>
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) => setForm({...form, phone: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => setForm({...form, email: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Address
+                      </label>
+                      <textarea
+                        value={form.address}
+                        onChange={(e) => setForm({...form, address: e.target.value})}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Parent Information */}
+                <div>
+                  <h4 className="text-md font-medium text-gray-900 mb-4">Parent/Guardian Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Parent First Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.parent_first_name}
+                        onChange={(e) => setForm({...form, parent_first_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Parent Last Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={form.parent_last_name}
+                        onChange={(e) => setForm({...form, parent_last_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Parent Phone *
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={form.parent_phone}
+                        onChange={(e) => setForm({...form, parent_phone: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Parent Email *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={form.parent_email}
+                        onChange={(e) => setForm({...form, parent_email: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Relationship
+                      </label>
+                      <select
+                        value={form.relationship}
+                        onChange={(e) => setForm({...form, relationship: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="parent">Parent</option>
+                        <option value="guardian">Guardian</option>
+                        <option value="sibling">Sibling</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form Actions */}
+                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  >
+                    {editingStudent ? 'Update Student' : 'Add Student'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

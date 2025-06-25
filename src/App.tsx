@@ -146,7 +146,8 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* Parent Portal Public Routes */}
-            <Route path="/parent-portal" element={<ParentLogin />} />
+            <Route path="/parent-portal" element={<Navigate to="/parent-portal/login" replace />} />
+            <Route path="/parent-portal/login" element={<ParentLogin />} />
             <Route path="/parent-portal/dashboard" element={
               <ParentPortalProvider>
                 <ParentPortalLayout />
@@ -173,6 +174,8 @@ function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="integrations" element={<Integrations />} />
             </Route>
+            {/* Catch all route for any unmatched paths */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
       </Router>
