@@ -13,8 +13,6 @@ import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import ResetPassword from './pages/ResetPassword';
 import ParentPortalLayout from './pages/ParentPortalLayout';
-import ParentLookupForm from './pages/ParentLookupForm';
-import ParentSignupForm from './pages/ParentSignupForm';
 import ParentStudentInfo from './pages/ParentStudentInfo';
 import ParentPaymentPage from './pages/ParentPaymentPage';
 import ParentPaymentConfirmation from './pages/ParentPaymentConfirmation';
