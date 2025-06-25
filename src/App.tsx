@@ -10,6 +10,7 @@ import Settings from './pages/Settings';
 import Integrations from './pages/Integrations';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
+import ResetPassword from './pages/ResetPassword';
 import './index.css';
 
 // Simple auth context for backend API
@@ -114,6 +115,7 @@ function App() {
         <div className="App">
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/" element={
               <ProtectedRoute>
                 <Layout />
