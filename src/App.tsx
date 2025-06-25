@@ -86,8 +86,9 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         localStorage.setItem('access_token', data.access_token);
         setUser(data.user);
         return true;
+      } else {
+        return false;
       }
-      return false;
     } catch (error) {
       console.error('Login failed:', error);
       return false;
