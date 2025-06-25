@@ -21,6 +21,7 @@ import ParentPaymentConfirmation from './pages/ParentPaymentConfirmation';
 import ParentUpdateForm from './pages/ParentUpdateForm';
 import ParentDeleteAccount from './pages/ParentDeleteAccount';
 import { ParentPortalProvider } from './contexts/parentPortalContext';
+import ParentLogin from './pages/ParentLogin';
 import './index.css';
 // import './sentry'; // Import Sentry configuration
 // import { SentryErrorBoundary } from './components/ErrorBoundary';
@@ -147,14 +148,13 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* Parent Portal Public Routes */}
-            <Route path="/parent-portal/*" element={
+            <Route path="/parent-portal" element={<ParentLogin />} />
+            <Route path="/parent-portal/dashboard" element={
               <ParentPortalProvider>
                 <ParentPortalLayout />
               </ParentPortalProvider>
             }>
-              <Route index element={<ParentLookupForm />} />
-              <Route path="signup" element={<ParentSignupForm />} />
-              <Route path="student" element={<ParentStudentInfo />} />
+              <Route index element={<ParentStudentInfo />} />
               <Route path="pay" element={<ParentPaymentPage />} />
               <Route path="confirmation" element={<ParentPaymentConfirmation />} />
               <Route path="update" element={<ParentUpdateForm />} />
