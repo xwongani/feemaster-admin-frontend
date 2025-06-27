@@ -17,7 +17,7 @@ const PrivacyPage: React.FC = () => {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => {
-                  logDataAction('click', 'privacy_back_home', 'privacy_back_home');
+                  logDataAction('view', 'privacy_back_home', 'privacy_back_home');
                   window.location.href = '/';
                 }}
                 className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
@@ -29,7 +29,7 @@ const PrivacyPage: React.FC = () => {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => {
-                  logDataAction('click', 'privacy_contact_link', 'privacy_contact_link');
+                  logDataAction('view', 'privacy_contact_link', 'privacy_contact_link');
                   window.location.href = '/contact';
                 }}
                 className="text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
@@ -38,7 +38,7 @@ const PrivacyPage: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  logDataAction('click', 'privacy_login_link', 'privacy_login_link');
+                  logDataAction('view', 'privacy_login_link', 'privacy_login_link');
                   window.location.href = '/login';
                 }}
                 className="primary-btn"
@@ -287,7 +287,7 @@ const PrivacyPage: React.FC = () => {
               </p>
               <button
                 onClick={() => {
-                  logDataAction('click', 'privacy_contact_rights', 'privacy_contact_rights');
+                  logDataAction('view', 'privacy_contact_rights', 'privacy_contact_rights');
                   window.location.href = '/contact';
                 }}
                 className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors duration-200"
@@ -417,7 +417,7 @@ const PrivacyPage: React.FC = () => {
               </p>
               <button
                 onClick={() => {
-                  logDataAction('click', 'privacy_contact_concerns', 'privacy_contact_concerns');
+                  logDataAction('view', 'privacy_contact_concerns', 'privacy_contact_concerns');
                   window.location.href = '/contact';
                 }}
                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200"
@@ -433,7 +433,7 @@ const PrivacyPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => {
-                logDataAction('click', 'privacy_terms_link', 'privacy_terms_link');
+                logDataAction('view', 'privacy_terms_link', 'privacy_terms_link');
                 window.location.href = '/terms';
               }}
               className="secondary-btn"
@@ -442,7 +442,7 @@ const PrivacyPage: React.FC = () => {
             </button>
             <button
               onClick={() => {
-                logDataAction('click', 'privacy_contact_link', 'privacy_contact_link');
+                logDataAction('view', 'privacy_contact_link', 'privacy_contact_link');
                 window.location.href = '/contact';
               }}
               className="primary-btn"

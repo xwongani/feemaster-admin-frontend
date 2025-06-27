@@ -146,12 +146,12 @@ const ResetPasswordPage: React.FC = () => {
   };
 
   const handleBackToLogin = () => {
-    logDataAction('click', 'reset_password_back_to_login', 'reset_password_back_to_login');
+    logDataAction('view', 'reset_password_back_to_login', 'reset_password_back_to_login');
     navigate('/login');
   };
 
   const handleRequestNewReset = () => {
-    logDataAction('click', 'reset_password_request_new', 'reset_password_request_new');
+    logDataAction('view', 'reset_password_request_new', 'reset_password_request_new');
     navigate('/forgot-password');
   };
 

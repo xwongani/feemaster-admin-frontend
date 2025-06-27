@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (userResp.success && userResp.user) {
               setUser(userResp.user);
               setUserType(storedUserType);
-              logDataAction('view', 'session_restored', undefined, { user_type: storedUserType });
+              logDataAction('view', 'session_restored', 'session_restored', { user_type: storedUserType });
             } else {
               logout();
             }
@@ -134,12 +134,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (userData: any, userType: 'admin' | 'parent'): Promise<{ success: boolean; error?: string }> => {
     try {
       const response = await authApi.register({ ...userData, user_type: userType });
-      if (response.user && response.token) {
-        setUser(response.user);
-        setUserType(userType);
-        localStorage.setItem('authToken', response.token);
-        localStorage.setItem('userType', userType);
-        localStorage.setItem('userData', JSON.stringify(response.user));
+      if (response.success) {
+        // Registration successful, but we need to login to get user data
+        // For now, just return success - the user will need to login
         return { success: true };
       } else {
         return { success: false, error: response.message || 'Registration failed' };

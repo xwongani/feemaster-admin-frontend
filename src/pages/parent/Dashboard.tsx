@@ -11,7 +11,7 @@ const ParentDashboard: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    logDataAction('click', 'parent_logout', 'parent_logout');
+    logDataAction('view', 'parent_logout', 'parent_logout');
     logout();
   };
 

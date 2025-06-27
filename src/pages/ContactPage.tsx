@@ -32,7 +32,7 @@ const ContactPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    logDataAction('click', 'contact_form_submit', 'contact_form_submit');
+    logDataAction('view', 'contact_form_submit', 'contact_form_submit');
 
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -144,7 +144,7 @@ const ContactPage: React.FC = () => {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => {
-                  logDataAction('click', 'contact_back_home', 'contact_back_home');
+                  logDataAction('view', 'contact_back_home', 'contact_back_home');
                   window.location.href = '/';
                 }}
                 className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
@@ -156,7 +156,7 @@ const ContactPage: React.FC = () => {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => {
-                  logDataAction('click', 'contact_about_link', 'contact_about_link');
+                  logDataAction('view', 'contact_about_link', 'contact_about_link');
                   window.location.href = '/about';
                 }}
                 className="text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
@@ -165,7 +165,7 @@ const ContactPage: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  logDataAction('click', 'contact_login_link', 'contact_login_link');
+                  logDataAction('view', 'contact_login_link', 'contact_login_link');
                   window.location.href = '/login';
                 }}
                 className="primary-btn"
@@ -213,7 +213,7 @@ const ContactPage: React.FC = () => {
                 <p className="text-lg font-medium text-blue-600 mb-6">{method.contact}</p>
                 <button
                   onClick={() => {
-                    logDataAction('click', `contact_${method.title.toLowerCase().replace(' ', '_')}`, `contact_${method.title.toLowerCase().replace(' ', '_')}`);
+                    logDataAction('view', `contact_${method.title.toLowerCase().replace(' ', '_')}`, `contact_${method.title.toLowerCase().replace(' ', '_')}`);
                   }}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200"
                 >
@@ -348,7 +348,7 @@ const ContactPage: React.FC = () => {
                 <button
                   type="submit"
                   onClick={() => {
-                    logDataAction('click', 'contact_form_submit', 'contact_form_submit');
+                    logDataAction('view', 'contact_form_submit', 'contact_form_submit');
                   }}
                   className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200"
                 >

@@ -142,12 +142,12 @@ const Students: React.FC = () => {
   const grades = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
   const handleAddNew = () => {
-    logDataAction('click', 'students_add_new', 'students_add_new');
+    logDataAction('view', 'students_add_new', 'students_add_new');
     setShowAddModal(true);
   };
 
   const handleClearFilters = () => {
-    logDataAction('click', 'students_clear_filters', 'students_clear_filters');
+    logDataAction('view', 'students_clear_filters', 'students_clear_filters');
     setSearchQuery('');
     setFilterGrade('');
     setFilterStatus('');
@@ -162,7 +162,7 @@ const Students: React.FC = () => {
   };
 
   const handleExport = async () => {
-    logDataAction('click', 'students_export', 'students_export');
+    logDataAction('view', 'students_export', 'students_export');
     setExportLoading(true);
     try {
       // Export logic here
@@ -176,25 +176,25 @@ const Students: React.FC = () => {
   };
 
   const handleViewStudent = (student: Student) => {
-    logDataAction('click', 'students_view', 'students_view');
+    logDataAction('view', 'students_view', 'students_view');
     setSelectedStudent(student);
     // Navigate to student details or open modal
   };
 
   const handleEditStudent = (student: Student) => {
-    logDataAction('click', 'students_edit', 'students_edit');
+    logDataAction('view', 'students_edit', 'students_edit');
     setSelectedStudent(student);
     setShowEditModal(true);
   };
 
   const handleDeleteStudent = (student: Student) => {
-    logDataAction('click', 'students_delete', 'students_delete');
+    logDataAction('view', 'students_delete', 'students_delete');
     setSelectedStudent(student);
     setShowDeleteModal(true);
   };
 
   const handleAddFirstStudent = () => {
-    logDataAction('click', 'students_add_first', 'students_add_first');
+    logDataAction('view', 'students_add_first', 'students_add_first');
     setShowAddModal(true);
   };
 

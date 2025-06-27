@@ -114,7 +114,7 @@ const AboutPage: React.FC = () => {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => {
-                  logDataAction('click', 'about_back_home', 'about_back_home');
+                  logDataAction('view', 'about_back_home', 'about_back_home');
                   window.location.href = '/';
                 }}
                 className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
@@ -126,7 +126,7 @@ const AboutPage: React.FC = () => {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => {
-                  logDataAction('click', 'about_contact_link', 'about_contact_link');
+                  logDataAction('view', 'about_contact_link', 'about_contact_link');
                   window.location.href = '/contact';
                 }}
                 className="text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
@@ -135,7 +135,7 @@ const AboutPage: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  logDataAction('click', 'about_login_link', 'about_login_link');
+                  logDataAction('view', 'about_login_link', 'about_login_link');
                   window.location.href = '/login';
                 }}
                 className="primary-btn"
@@ -164,7 +164,7 @@ const AboutPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => {
-                  logDataAction('click', 'about_demo_request', 'about_demo_request');
+                  logDataAction('view', 'about_demo_request', 'about_demo_request');
                   window.location.href = '/contact';
                 }}
                 className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200"
@@ -173,7 +173,7 @@ const AboutPage: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  logDataAction('click', 'about_learn_more', 'about_learn_more');
+                  logDataAction('view', 'about_learn_more', 'about_learn_more');
                   document.getElementById('mission')?.scrollIntoView({ behavior: 'smooth' });
                 }}
                 className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors duration-200"
@@ -368,7 +368,7 @@ const AboutPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => {
-                logDataAction('click', 'about_get_started', 'about_get_started');
+                logDataAction('view', 'about_get_started', 'about_get_started');
                 window.location.href = '/register';
               }}
               className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200"
@@ -377,7 +377,7 @@ const AboutPage: React.FC = () => {
             </button>
             <button
               onClick={() => {
-                logDataAction('click', 'about_schedule_demo', 'about_schedule_demo');
+                logDataAction('view', 'about_schedule_demo', 'about_schedule_demo');
                 window.location.href = '/contact';
               }}
               className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors duration-200"
