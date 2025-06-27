@@ -1,26 +1,56 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '../App';
+import React, { ReactNode } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import LoadingSpinner from './LoadingSpinner';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
+  children: ReactNode;
+  allowedUserTypes?: ('parent' | 'admin')[];
+  requireAuth?: boolean;
+  fallbackPath?: string;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, loading } = useAuth();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
+  children, 
+  allowedUserTypes = [], 
+  requireAuth = true,
+  fallbackPath = '/login'
+}) => {
+  const { isAuthenticated, userType } = useAuth();
+  const location = useLocation();
 
-  if (loading) {
+  // If authentication is not required, render children
+  if (!requireAuth) {
+    return <>{children}</>;
+  }
+
+  // If not authenticated, redirect to login
+  if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
+      <Navigate 
+        to={fallbackPath} 
+        state={{ from: location }} 
+        replace 
+      />
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
+  // If user types are specified, check if current user type is allowed
+  if (allowedUserTypes.length > 0 && userType && !allowedUserTypes.includes(userType)) {
+    return (
+      <Navigate 
+        to="/unauthorized" 
+        state={{ 
+          from: location,
+          requiredTypes: allowedUserTypes,
+          currentType: userType
+        }} 
+        replace 
+      />
+    );
   }
 
+  // User is authenticated and authorized, render children
   return <>{children}</>;
 };
 

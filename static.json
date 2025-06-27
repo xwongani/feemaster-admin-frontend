@@ -1,23 +1,36 @@
 {
   "root": "build/",
+  "clean_urls": true,
   "routes": {
-    "/**": "index.html"
+    "/**": "/index.html"
   },
+  "https_only": true,
   "headers": {
+    "/**": {
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "X-XSS-Protection": "1; mode=block",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
+    },
     "/static/**": {
       "Cache-Control": "public, max-age=31536000, immutable"
     },
-    "/favicon.ico": {
-      "Cache-Control": "public, max-age=86400"
+    "/**/*.js": {
+      "Cache-Control": "public, max-age=31536000, immutable"
     },
-    "/manifest.json": {
-      "Cache-Control": "public, max-age=86400"
+    "/**/*.css": {
+      "Cache-Control": "public, max-age=31536000, immutable"
     },
-    "/logo.png": {
-      "Cache-Control": "public, max-age=86400"
+    "/**/*.png": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    },
+    "/**/*.jpg": {
+      "Cache-Control": "public, max-age=31536000, immutable"
+    },
+    "/**/*.ico": {
+      "Cache-Control": "public, max-age=31536000, immutable"
     }
   },
-  "clean_urls": true,
-  "https_only": true,
-  "error_page": "index.html"
+  "error_page": "404.html"
 } 

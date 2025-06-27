@@ -1,183 +1,148 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-// import * as Sentry from "@sentry/react";
-import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import Students from './pages/Students';
-import Payments from './pages/Payments';
-import FinancialDashboard from './pages/FinancialDashboard';
-import Reports from './pages/Reports';
-import Settings from './pages/Settings';
-import Integrations from './pages/Integrations';
-import Login from './pages/Login';
+import React, { Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+// Alternative: import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+// Use HashRouter if you're having issues with page reloads and can't configure the server
+import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import ResetPassword from './pages/ResetPassword';
-import ParentPortalLayout from './pages/ParentPortalLayout';
-import ParentStudentInfo from './pages/ParentStudentInfo';
-import ParentPaymentPage from './pages/ParentPaymentPage';
-import ParentPaymentConfirmation from './pages/ParentPaymentConfirmation';
-import ParentUpdateForm from './pages/ParentUpdateForm';
-import ParentDeleteAccount from './pages/ParentDeleteAccount';
-import { ParentPortalProvider } from './contexts/parentPortalContext';
-import ParentLogin from './pages/ParentLogin';
+import RouteFallback from './components/RouteFallback';
+import LoadingSpinner from './components/LoadingSpinner';
 import './index.css';
-// import './sentry'; // Import Sentry configuration
-// import { SentryErrorBoundary } from './components/ErrorBoundary';
 
-// Simple auth context for backend API
-interface User {
-  id: string;
-  email: string;
-  role: string;
-  is_active: boolean;
-}
+// Lazy load components for better performance
+const LandingPage = React.lazy(() => import('./components/LandingPage'));
+const LoginPage = React.lazy(() => import('./pages/LoginPage'));
+const RegisterPage = React.lazy(() => import('./pages/RegisterPage'));
+const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage'));
+const UnauthorizedPage = React.lazy(() => import('./pages/UnauthorizedPage'));
 
-interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  loading: boolean;
-  checkAuth: () => Promise<void>;
-}
+// Public pages
+const AboutPage = React.lazy(() => import('./pages/AboutPage'));
+const ContactPage = React.lazy(() => import('./pages/ContactPage'));
+const PrivacyPage = React.lazy(() => import('./pages/PrivacyPage'));
+const TermsPage = React.lazy(() => import('./pages/TermsPage'));
+const HelpPage = React.lazy(() => import('./pages/HelpPage'));
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Parent Portal Components
+const ParentDashboard = React.lazy(() => import('./pages/parent/Dashboard'));
+const ParentProfile = React.lazy(() => import('./pages/parent/Profile'));
+const ParentChildren = React.lazy(() => import('./pages/parent/Children'));
+const ParentFees = React.lazy(() => import('./pages/parent/Fees'));
+const ParentPayment = React.lazy(() => import('./pages/parent/Payment'));
+const ParentPaymentHistory = React.lazy(() => import('./pages/parent/PaymentHistory'));
+const ParentNotifications = React.lazy(() => import('./pages/parent/Notifications'));
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+// Admin Components
+const AdminDashboard = React.lazy(() => import('./pages/Dashboard')); // Using existing Dashboard
+const AdminStudents = React.lazy(() => import('./pages/Students')); // Using existing Students
+const AdminSchools = React.lazy(() => import('./pages/admin/Schools'));
+const AdminParents = React.lazy(() => import('./pages/admin/Parents'));
+const AdminFees = React.lazy(() => import('./pages/admin/Fees'));
+const AdminPayments = React.lazy(() => import('./pages/admin/Payments'));
+const AdminReports = React.lazy(() => import('./pages/admin/Reports'));
+const AdminSettings = React.lazy(() => import('./pages/admin/Settings'));
 
-const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+// Payment Components
+const PaymentProcess = React.lazy(() => import('./pages/payment/Process'));
+const PaymentSuccess = React.lazy(() => import('./pages/payment/Success'));
+const PaymentCancel = React.lazy(() => import('./pages/payment/Cancel'));
+const PaymentFailure = React.lazy(() => import('./pages/payment/Failure'));
 
-  const checkAuth = async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+// Legacy routes for backward compatibility
+const LegacyDashboard = React.lazy(() => import('./pages/Dashboard'));
+const LegacyStudents = React.lazy(() => import('./pages/Students'));
+const LegacyLogin = React.lazy(() => import('./pages/Login'));
 
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/v1/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setUser(data.data);
-        } else {
-          // Token is invalid or expired
-          localStorage.removeItem('access_token');
-          setUser(null);
-        }
-      } else {
-        // Token is invalid or expired
-        localStorage.removeItem('access_token');
-        setUser(null);
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      // On network error, keep the token but don't set user
-      // This allows for offline functionality if needed
-      localStorage.removeItem('access_token');
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const login = async (email: string, password: string): Promise<boolean> => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-        setUser(data.user);
-        return true;
-      } else {
-        console.error('Login failed:', data);
-        return false;
-      }
-    } catch (error) {
-      console.error('Login network error:', error);
-      return false;
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('access_token');
-    setUser(null);
-    // Force a page reload to clear any cached state
-    window.location.href = '/login';
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, login, logout, loading, checkAuth }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
+// Loading component for Suspense
+const PageLoader: React.FC = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="text-center">
+      <LoadingSpinner size="xl" text="Loading page..." />
+    </div>
+  </div>
+);
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="App">
+        <Suspense fallback={<PageLoader />}>
           <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            {/* Parent Portal Public Routes */}
-            <Route path="/parent-portal" element={<Navigate to="/parent-portal/login" replace />} />
-            <Route path="/parent-portal/login" element={<ParentLogin />} />
-            <Route path="/parent-portal/dashboard" element={
-              <ParentPortalProvider>
-                <ParentPortalLayout />
-              </ParentPortalProvider>
-            }>
-              <Route index element={<ParentStudentInfo />} />
-              <Route path="pay" element={<ParentPaymentPage />} />
-              <Route path="confirmation" element={<ParentPaymentConfirmation />} />
-              <Route path="update" element={<ParentUpdateForm />} />
-              <Route path="delete" element={<ParentDeleteAccount />} />
-            </Route>
-            {/* Admin Protected Routes */}
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Layout />
+            {/* Public Routes */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            
+            {/* Public Information Pages */}
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/help" element={<HelpPage />} />
+
+            {/* Parent Portal Routes */}
+            <Route path="/parent/*" element={
+              <ProtectedRoute allowedUserTypes={['parent']}>
+                <Routes>
+                  <Route path="dashboard" element={<ParentDashboard />} />
+                  <Route path="profile" element={<ParentProfile />} />
+                  <Route path="children" element={<ParentChildren />} />
+                  <Route path="fees" element={<ParentFees />} />
+                  <Route path="payment" element={<ParentPayment />} />
+                  <Route path="payment/history" element={<ParentPaymentHistory />} />
+                  <Route path="notifications" element={<ParentNotifications />} />
+                  <Route path="*" element={<RouteFallback />} />
+                </Routes>
               </ProtectedRoute>
-            }>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="students" element={<Students />} />
-              <Route path="payments" element={<Payments />} />
-              <Route path="financial-dashboard" element={<FinancialDashboard />} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="integrations" element={<Integrations />} />
-            </Route>
-            {/* Catch all route for any unmatched paths */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            } />
+
+            {/* Admin Routes */}
+            <Route path="/admin/*" element={
+              <ProtectedRoute allowedUserTypes={['admin']}>
+                <Routes>
+                  <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="schools" element={<AdminSchools />} />
+                  <Route path="students" element={<AdminStudents />} />
+                  <Route path="parents" element={<AdminParents />} />
+                  <Route path="fees" element={<AdminFees />} />
+                  <Route path="payments" element={<AdminPayments />} />
+                  <Route path="reports" element={<AdminReports />} />
+                  <Route path="settings" element={<AdminSettings />} />
+                  <Route path="*" element={<RouteFallback />} />
+                </Routes>
+              </ProtectedRoute>
+            } />
+
+            {/* Payment Gateway Routes */}
+            <Route path="/payment/*" element={
+              <ProtectedRoute>
+                <Routes>
+                  <Route path="process" element={<PaymentProcess />} />
+                  <Route path="success" element={<PaymentSuccess />} />
+                  <Route path="cancel" element={<PaymentCancel />} />
+                  <Route path="failure" element={<PaymentFailure />} />
+                  <Route path="*" element={<RouteFallback />} />
+                </Routes>
+              </ProtectedRoute>
+            } />
+
+            {/* Legacy Routes for Backward Compatibility */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute allowedUserTypes={['admin']}>
+                <LegacyDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/students" element={
+              <ProtectedRoute allowedUserTypes={['admin']}>
+                <LegacyStudents />
+              </ProtectedRoute>
+            } />
+
+            {/* Fallback Route - handles unknown URLs */}
+            <Route path="*" element={<RouteFallback />} />
           </Routes>
-        </div>
+        </Suspense>
       </Router>
     </AuthProvider>
   );

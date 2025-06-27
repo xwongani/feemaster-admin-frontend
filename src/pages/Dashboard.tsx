@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import { useNavigate } from 'react-router-dom';
+import { dashboardApi } from '../services/api';
+import { useAnalytics } from '../hooks/useAnalytics';
+import Alert from '../components/Alert';
+import LoadingSpinner from '../components/LoadingSpinner';
 // import TestSentry from '../components/TestSentry';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
@@ -47,6 +52,8 @@ interface DashboardStats {
 }
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const { logDataAction } = useAnalytics();
   const [stats, setStats] = useState<DashboardStats>({
     total_collections: 0,
     total_students: 0,
@@ -78,6 +85,7 @@ const Dashboard: React.FC = () => {
   ]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Use standard React environment variable access
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -89,108 +97,74 @@ const Dashboard: React.FC = () => {
   const fetchAllDashboardData = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       await Promise.all([
         fetchDashboardStats(),
         fetchGradeProgress(),
         fetchRevenueChart(),
         fetchQuickActions()
       ]);
-      setError(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
-      setError('Failed to load some dashboard data.');
+      setError(err.message || 'Failed to load some dashboard data.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchAllDashboardData();
+    setRefreshing(false);
+  };
+
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        setStats(result.data);
-      } else {
-        throw new Error(result.message || 'Failed to fetch dashboard stats');
-      }
+      const data = await dashboardApi.getStats();
+      setStats(data);
+      logDataAction('view', 'dashboard_stats', 'dashboard');
     } catch (err) {
       console.error('Error fetching dashboard stats:', err);
+      // Keep fallback data
     }
   };
 
   const fetchGradeProgress = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/grade-distribution`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setGradeProgress(result.data);
-          return;
-        }
-      }
+      const data = await dashboardApi.getGradeDistribution();
+      setGradeProgress(data);
+      logDataAction('view', 'grade_progress', 'dashboard');
     } catch (err) {
       console.error('Error fetching grade progress:', err);
+      // Use fallback data
+      setGradeProgress([
+        { grade: 'Grade 7A', students: 15, progress: 87 },
+        { grade: 'Grade 7B', students: 14, progress: 92 },
+        { grade: 'Grade 8A', students: 18, progress: 78 },
+      ]);
     }
-    
-    // Use fallback data
-    setGradeProgress([
-      { grade: 'Grade 7A', students: 15, progress: 87 },
-      { grade: 'Grade 7B', students: 14, progress: 92 },
-      { grade: 'Grade 8A', students: 18, progress: 78 },
-    ]);
   };
 
   const fetchRevenueChart = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/revenue-chart?period=week`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setChartData(result.data);
-          return;
-        }
-      }
+      const data = await dashboardApi.getRevenueChart('week');
+      setChartData(data);
+      logDataAction('view', 'revenue_chart', 'dashboard');
     } catch (err) {
       console.error('Error fetching revenue chart:', err);
+      // Keep existing chart data
     }
   };
 
   const fetchQuickActions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/quick-actions`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setQuickActions(result.data);
-        }
-      }
+      const data = await dashboardApi.getQuickActions();
+      setQuickActions(data);
+      logDataAction('view', 'quick_actions', 'dashboard');
     } catch (err) {
       console.error('Error fetching quick actions:', err);
+      // Keep existing quick actions
     }
   };
 
@@ -200,6 +174,15 @@ const Dashboard: React.FC = () => {
     plugins: {
       legend: {
         display: false,
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: 'white',
+        bodyColor: 'white',
+        borderColor: 'rgba(59, 130, 246, 0.5)',
+        borderWidth: 1,
+        cornerRadius: 8,
+        displayColors: false,
       },
     },
     scales: {
@@ -211,14 +194,18 @@ const Dashboard: React.FC = () => {
           }
         }
       }
-    }
+    },
+    interaction: {
+      intersect: false,
+      mode: 'index' as const,
+    },
   };
 
   const getStatusBadge = (status: string) => {
     const statusClasses = {
-      completed: 'bg-green-100 text-green-800',
-      pending: 'bg-yellow-100 text-yellow-800',
-      failed: 'bg-red-100 text-red-800'
+      completed: 'status-paid',
+      pending: 'status-pending',
+      failed: 'status-failed'
     };
     const statusText = {
       completed: 'Completed',
@@ -226,7 +213,7 @@ const Dashboard: React.FC = () => {
       failed: 'Failed'
     };
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusClasses[status as keyof typeof statusClasses]}`}>
+      <span className={`status-badge ${statusClasses[status as keyof typeof statusClasses]}`}>
         {statusText[status as keyof typeof statusText]}
       </span>
     );
@@ -234,181 +221,182 @@ const Dashboard: React.FC = () => {
 
   const getQuickActionColor = (color: string) => {
     const colorClasses = {
-      blue: 'bg-blue-100 group-hover:bg-blue-200 text-blue-600',
-      green: 'bg-green-100 group-hover:bg-green-200 text-green-600',
-      yellow: 'bg-yellow-100 group-hover:bg-yellow-200 text-yellow-600',
-      purple: 'bg-purple-100 group-hover:bg-purple-200 text-purple-600',
-      indigo: 'bg-indigo-100 group-hover:bg-indigo-200 text-indigo-600',
-      gray: 'bg-gray-100 group-hover:bg-gray-200 text-gray-600'
+      blue: 'bg-gradient-to-br from-blue-500 to-blue-600',
+      green: 'bg-gradient-to-br from-green-500 to-green-600',
+      yellow: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
+      purple: 'bg-gradient-to-br from-purple-500 to-purple-600',
+      indigo: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
+      gray: 'bg-gradient-to-br from-gray-500 to-gray-600'
     };
-    return colorClasses[color as keyof typeof colorClasses] || 'bg-blue-100 group-hover:bg-blue-200 text-blue-600';
+    return colorClasses[color as keyof typeof colorClasses] || 'bg-gradient-to-br from-blue-500 to-blue-600';
+  };
+
+  const handleQuickActionClick = (href: string, actionTitle: string) => {
+    navigate(href);
   };
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          <span className="ml-3 text-lg">Loading dashboard...</span>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <LoadingSpinner size="xl" text="Loading dashboard..." />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Today: {new Date().toLocaleDateString('en-US', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
-        })}</p>
-        {stats.current_academic_year && (
-          <p className="text-sm text-gray-500">Academic Year: {stats.current_academic_year} - {stats.current_academic_term}</p>
-        )}
+    <div className="space-y-6" role="main" aria-label="Dashboard">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1">
+            Today: {new Date().toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </p>
+          {stats.current_academic_year && (
+            <p className="text-sm text-gray-500 mt-1">
+              Academic Year: {stats.current_academic_year} - {stats.current_academic_term}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="mt-4 sm:mt-0 secondary-btn focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Refresh dashboard data"
+        >
+          <i className={`fas fa-sync-alt mr-2 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true"></i>
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-md p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <i className="fas fa-exclamation-triangle text-yellow-400"></i>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-yellow-800">{error}</p>
-            </div>
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          title="Dashboard Data"
+          message={error}
+          onClose={() => setError(null)}
+        />
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                <i className="fas fa-file-invoice-dollar text-white text-xl"></i>
-              </div>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-sm font-medium text-gray-500">Total Collections</h3>
-              <div className="text-2xl font-bold text-gray-900">K {stats.total_collections.toLocaleString()}.00</div>
-              <div className="text-sm text-gray-500">This Month</div>
-            </div>
+      <div className="stats-container" role="region" aria-label="Dashboard statistics">
+        <div className="stat-card" tabIndex={0} aria-label={`Total collections: K ${stats.total_collections.toLocaleString()}.00`}>
+          <div className="stat-icon payment-icon">
+            <i className="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+          </div>
+          <div className="flex-1">
+            <div className="stat-value">K {stats.total_collections.toLocaleString()}.00</div>
+            <div className="stat-label">Total Collections</div>
+            <div className="stat-period">This Month</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                <i className="fas fa-user-graduate text-white text-xl"></i>
-              </div>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-sm font-medium text-gray-500">Total Students</h3>
-              <div className="text-2xl font-bold text-gray-900">{stats.total_students}</div>
-              <div className="text-sm text-gray-500">Enrolled</div>
-            </div>
+        <div className="stat-card" tabIndex={0} aria-label={`Total students: ${stats.total_students}`}>
+          <div className="stat-icon student-icon">
+            <i className="fas fa-user-graduate" aria-hidden="true"></i>
+          </div>
+          <div className="flex-1">
+            <div className="stat-value">{stats.total_students}</div>
+            <div className="stat-label">Total Students</div>
+            <div className="stat-period">Enrolled</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
-                <i className="fas fa-hourglass-half text-white text-xl"></i>
-              </div>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-sm font-medium text-gray-500">Pending Payments</h3>
-              <div className="text-2xl font-bold text-gray-900">K {stats.pending_payments.toLocaleString()}.00</div>
-              <div className="text-sm text-gray-500">Outstanding</div>
-            </div>
+        <div className="stat-card" tabIndex={0} aria-label={`Pending payments: K ${stats.pending_payments.toLocaleString()}.00`}>
+          <div className="stat-icon pending-icon">
+            <i className="fas fa-hourglass-half" aria-hidden="true"></i>
+          </div>
+          <div className="flex-1">
+            <div className="stat-value">K {stats.pending_payments.toLocaleString()}.00</div>
+            <div className="stat-label">Pending Payments</div>
+            <div className="stat-period">Outstanding</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                <i className="fas fa-receipt text-white text-xl"></i>
-              </div>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-sm font-medium text-gray-500">Receipts Generated</h3>
-              <div className="text-2xl font-bold text-gray-900">{stats.receipts_generated}</div>
-              <div className="text-sm text-gray-500">This Month</div>
-            </div>
+        <div className="stat-card" tabIndex={0} aria-label={`Receipts generated: ${stats.receipts_generated}`}>
+          <div className="stat-icon receipt-icon">
+            <i className="fas fa-receipt" aria-hidden="true"></i>
+          </div>
+          <div className="flex-1">
+            <div className="stat-value">{stats.receipts_generated}</div>
+            <div className="stat-label">Receipts Generated</div>
+            <div className="stat-period">This Month</div>
           </div>
         </div>
       </div>
 
-      {/* Quick Actions - MOVED TO TOP */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-900">Quick Actions</h2>
+      {/* Quick Actions */}
+      <div className="dashboard-card" role="region" aria-label="Quick actions">
+        <div className="card-header">
+          <h2>Quick Actions</h2>
+          <p className="text-sm text-gray-500">Common tasks and shortcuts</p>
         </div>
-        <div className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {quickActions.map((action, index) => (
-              <a
-                key={index}
-                href={action.href}
-                className="flex flex-col items-center p-4 text-center bg-gray-50 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors group relative"
-              >
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-3 ${getQuickActionColor(action.color)}`}>
-                  <i className={`${action.icon} text-xl`}></i>
-                </div>
-                <span className="text-sm font-medium text-gray-900 group-hover:text-blue-600">
-                  {action.title}
+        <div className="quick-actions-grid">
+          {quickActions.map((action, index) => (
+            <button
+              key={index}
+              onClick={() => handleQuickActionClick(action.href, action.title)}
+              className="quick-action-card focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label={`${action.title}${action.count ? ` (${action.count} items)` : ''}`}
+            >
+              <div className={`quick-action-icon ${getQuickActionColor(action.color)}`}>
+                <i className={action.icon} aria-hidden="true"></i>
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                {action.title}
+              </h3>
+              {action.count && (
+                <span className="notification-badge" aria-label={`${action.count} items`}>
+                  {action.count > 9 ? '9+' : action.count}
                 </span>
-                {action.count && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {action.count}
-                  </span>
-                )}
-              </a>
-            ))}
-          </div>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Dashboard Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Daily Revenue</h2>
+        <div className="dashboard-card" role="region" aria-label="Daily revenue chart">
+          <div className="card-header">
+            <h2>Daily Revenue</h2>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-500">Last 7 days</span>
+            </div>
           </div>
-          <div style={{ height: '300px' }}>
+          <div className="chart-container" aria-label="Revenue chart showing daily collections">
             <Line data={chartData} options={chartOptions} />
           </div>
         </div>
 
         {/* Grade Progress */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Grade Payment Progress</h2>
+        <div className="dashboard-card" role="region" aria-label="Grade payment progress">
+          <div className="card-header">
+            <h2>Grade Payment Progress</h2>
+            <span className="text-sm text-gray-500">Collection rates by grade</span>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {gradeProgress.map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-sm font-medium text-gray-900">{item.grade}</h3>
-                    <span className="text-sm text-gray-500">{item.progress}% Paid</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-2">{item.students} students</p>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                      style={{ width: `${item.progress}%` }}
-                    ></div>
-                  </div>
+              <div key={index} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">{item.grade}</h3>
+                  <span className="text-sm font-medium text-gray-700">{item.progress}%</span>
+                </div>
+                <p className="text-xs text-gray-500">{item.students} students</p>
+                <div className="progress-bar" role="progressbar" aria-valuenow={item.progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${item.grade} payment progress: ${item.progress}%`}>
+                  <div 
+                    className="progress-fill" 
+                    style={{ width: `${item.progress}%` }}
+                  ></div>
                 </div>
               </div>
             ))}
@@ -417,59 +405,75 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Recent Payment Activities */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium text-gray-900">Recent Payment Activities</h2>
-            <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-              View All
-            </button>
-          </div>
+      <div className="dashboard-card" role="region" aria-label="Recent payment activities">
+        <div className="card-header">
+          <h2>Recent Payment Activities</h2>
+          <button 
+            onClick={() => {
+              navigate('/payments');
+            }}
+            className="text-blue-600 hover:text-blue-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="View all payments"
+          >
+            View All
+          </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+          <table className="data-table" role="table" aria-label="Recent payment activities">
+            <thead>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th scope="col">Student</th>
+                <th scope="col">Payment Type</th>
+                <th scope="col">Amount</th>
+                <th scope="col">Date</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {stats.recent_activities.length > 0 ? (
                 stats.recent_activities.map((activity) => (
-                  <tr key={activity.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
+                  <tr key={activity.id}>
+                    <td>
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium text-sm">
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm shadow-lg">
                             {activity.initials}
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{activity.student_name}</div>
+                          <div className="text-sm font-semibold text-gray-900">{activity.student_name}</div>
                           <div className="text-sm text-gray-500">ID: {activity.student_id}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{activity.payment_type}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">K {activity.amount.toLocaleString()}.00</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{activity.date}</td>
-                    <td className="px-6 py-4">{getStatusBadge(activity.status)}</td>
-                    <td className="px-6 py-4 text-sm font-medium">
+                    <td className="text-sm text-gray-900">{activity.payment_type}</td>
+                    <td className="text-sm font-semibold text-gray-900">K {activity.amount.toLocaleString()}.00</td>
+                    <td className="text-sm text-gray-900">{activity.date}</td>
+                    <td>{getStatusBadge(activity.status)}</td>
+                    <td>
                       <div className="flex items-center gap-2">
-                        <button className="text-blue-600 hover:text-blue-900" title="View">
-                          <i className="fas fa-eye"></i>
+                        <button 
+                          className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                          title="View Details"
+                          aria-label={`View details for ${activity.student_name}'s payment`}
+                        >
+                          <i className="fas fa-eye" aria-hidden="true"></i>
                         </button>
-                        <button className="text-green-600 hover:text-green-900" title="Print">
-                          <i className="fas fa-print"></i>
+                        <button 
+                          className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500" 
+                          title="Print Receipt"
+                          aria-label={`Print receipt for ${activity.student_name}'s payment`}
+                        >
+                          <i className="fas fa-print" aria-hidden="true"></i>
                         </button>
                         {activity.status === 'pending' && (
-                          <button className="text-yellow-600 hover:text-yellow-900" title="Approve">
-                            <i className="fas fa-check"></i>
+                          <button 
+                            className="p-1 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500" 
+                            title="Approve Payment"
+                            aria-label={`Approve payment for ${activity.student_name}`}
+                          >
+                            <i className="fas fa-check" aria-hidden="true"></i>
                           </button>
                         )}
                       </div>
@@ -480,9 +484,13 @@ const Dashboard: React.FC = () => {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
-                      <i className="fas fa-file-invoice text-gray-300 text-4xl mb-4"></i>
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Recent Activities</h3>
-                      <p className="text-gray-500">Payment activities will appear here once transactions are recorded.</p>
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <i className="fas fa-file-invoice text-gray-400 text-2xl" aria-hidden="true"></i>
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Recent Activities</h3>
+                      <p className="text-gray-500 max-w-sm">
+                        Payment activities will appear here once transactions are recorded.
+                      </p>
                     </div>
                   </td>
                 </tr>
